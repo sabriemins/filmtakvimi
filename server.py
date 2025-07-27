@@ -9,7 +9,7 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return render_template_string("""
-        <h1>🎬 Film Takvimi Servisi</h1>
+        <h1>🎮 Film Takvimi Servisi</h1>
         <p>Takvimi indirmek için <a href='/ics'>buraya tıklayın</a>.</p>
     """)
 
@@ -28,7 +28,7 @@ def background_ics_updater():
             subprocess.run(["python", "scraper_paribu.py"])
         except Exception as e:
             print(f"Hata: {e}")
-        time.sleep(43200)  # 12 saat (43200 saniye)
+        time.sleep(43200)  # 12 saat
 
 if __name__ == "__main__":
     threading.Thread(target=background_ics_updater, daemon=True).start()
