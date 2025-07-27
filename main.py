@@ -1,60 +1,47 @@
-from fastapi import FastAPI, Response
-from fastapi.responses import HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uuid
-from datetime import datetime
-import pytz
-from ics import Calendar, Event
-import scraper_paribu
+from scraper_paribu import get_upcoming_movies
+from ics import Calendar, Event, DisplayAlarm
+from datetime import datetime, timedelta
+import os
 
-app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.get("/", response_class=HTMLResponse)
-async def root():
-    with open("templates/index.html", "r", encoding="utf-8") as f:
-        return f.read()
-
-@app.get("/calendar.ics")
-def get_calendar():
-    film_listesi = scraper_paribu.scrape()
+def create_ics_from_movies(movies):
     calendar = Calendar()
+    for film in movies:
+        try:
+            event = Event()
+            event.name = film["title"]
+            event.begin = datetime.strptime(film["date"], "%Y%m%d") + timedelta(hours=19)  # TSI 22:00
 
-    for film in film_listesi:
-        event = Event()
-        event.name = film["title"]
-        
-        # Özet kontrolü
-        ozet = film["ozet"] if film["ozet"] else "Özet bulunamadı"
+            # Açıklama alanı: tür, özet, fragman ve detay linki
+            description = (
+                f"🎮 Tür: {film.get('genre', 'Tür belirtilmemiş')}\n"
+                f"📄 Özet: {film.get('summary', 'Ozet bulunamadi')}\n"
+                f"▶️ Fragman: {film.get('trailer', 'Yok')}\n"
+                f"🔗 Detaylar: {film.get('link', '')}"
+            )
+            event.description = description
 
-        # Description kısmı
-        description = f"""🎬 Tür: {film["tur"]}
-📄 Özet: {ozet}
-▶️ Fragman: {film["fragman"]}
-🔗 Detaylar: {film["link"]}"""
-        event.description = description
+            
+            # 1 gün önce bildirim
+            alarm = DisplayAlarm(trigger=timedelta(days=-1))
+            event.alarms.append(alarm)
 
-        # Saat dilimi ayarı
-        turkey_tz = pytz.timezone("Europe/Istanbul")
-        dt_turkey = datetime.strptime(film["tarih"], "%Y-%m-%d")
-        dt_turkey = turkey_tz.localize(dt_turkey.replace(hour=22, minute=0, second=0))
-        dt_utc = dt_turkey.astimezone(pytz.utc)
-        event.begin = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
+            calendar.events.add(event)
+        except Exception as e:
+            print(f"Etkinlik oluşturulamadı: {film['title']}, {e}")
+    return calendar
 
-        # UID oluştur
-        uid = f"{uuid.uuid4()}@{film['title'].lower().replace(' ', '')[:5]}.org"
-        event.uid = uid
+def main():
+    movies = get_upcoming_movies()
+    calendar = create_ics_from_movies(movies)
 
-        # Bildirim 1 gün önceden
-        event.alarms = ["-P1D"]
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, "film_takvimi.ics")
 
-        calendar.events.add(event)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.writelines(calendar)
 
-    return Response(str(calendar), media_type="text/calendar")
+    print(f"✅ ICS dosyası oluşturuldu: {output_path}")
+
+if __name__ == "__main__":
+    main()
