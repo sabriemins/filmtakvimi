@@ -1,7 +1,14 @@
-from flask import Flask, send_file
+from flask import Flask, send_file, render_template_string
 import os
 
 app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return render_template_string("""
+        <h1>🎬 Film Takvimi Servisi</h1>
+        <p>Takvimi indirmek için <a href='/ics'>buraya tıklayın</a>.</p>
+    """)
 
 @app.route("/ics")
 def get_ics():
