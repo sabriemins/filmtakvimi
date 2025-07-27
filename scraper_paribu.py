@@ -60,7 +60,6 @@ def get_upcoming_movies():
                 movie["genre"] = "Tür belirtilmemiş"
 
             try:
-                # Film özeti için doğru sınıf
                 summary_block = driver.find_element(By.CLASS_NAME, "movie-summary-tablet")
                 paragraphs = summary_block.find_elements(By.TAG_NAME, "p")
                 if paragraphs:
@@ -87,7 +86,7 @@ def generate_ics_file(movies, filename="vizyon_takvimi.ics"):
 
     for movie in movies:
         uid = str(uuid.uuid4())
-        dtstart = f"{movie['date']}T190000Z"  # Saat 19:00 Zulu
+        dtstart = f"{movie['date']}T190000Z"
         genre = movie.get("genre", "Tür belirtilmemiş")
         summary = movie.get("summary", "Özet bulunamadı")
         trailer = movie.get("trailer", "Fragman bağlantısı yok")
@@ -102,7 +101,6 @@ def generate_ics_file(movies, filename="vizyon_takvimi.ics"):
             "TRIGGER:-P1D",
             "END:VALARM",
             f"DESCRIPTION:{description}",
-            f"LOCATION:{link}",
             f"DTSTART:{dtstart}",
             f"SUMMARY:{movie['title']}",
             f"UID:{uid}@{uid[:4]}.org",
