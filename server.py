@@ -25,7 +25,7 @@ def background_ics_updater():
     while True:
         try:
             print("🔄 ICS verisi güncelleniyor...")
-            subprocess.run(["python", "scraper_paribu.py"])
+            subprocess.run(["python", "main.py"])
         except Exception as e:
             print(f"Hata: {e}")
         time.sleep(43200)  # 12 saat
