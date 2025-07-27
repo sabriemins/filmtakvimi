@@ -1,61 +1,60 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, FileResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from scraper_paribu import get_upcoming_movies
-from ics import Calendar, Event
-from datetime import datetime, timedelta
-import os
+from fastapi import FastAPI, Response
+from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 import uuid
+from datetime import datetime
+import pytz
+from ics import Calendar, Event
+import scraper_paribu
 
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
 
-app.mount("/output", StaticFiles(directory="output"), name="output")
-
-def create_ics_from_movies(movies):
-    calendar = Calendar()
-    for film in movies:
-        try:
-            event = Event()
-            event.name = film["title"]
-            event.begin = datetime.strptime(film["date"], "%Y%m%d") + timedelta(hours=19)  # TSI 22:00
-
-            event.description = (
-                f"🎬 Tür: {film.get('genre', 'Tür belirtilmemiş')}\n"
-                f"📄 Özet: {film.get('summary', 'Özet bulunamadı')}\n"
-                f"▶️ Fragman: {film.get('trailer', 'Yok')}\n"
-                f"🔗 Detaylar: {film.get('link', '')}"
-            )
-
-            # UID benzersiz olsun
-            event.uid = f"{uuid.uuid4()}@{uuid.uuid4().hex[:5]}.org"
-
-            # 1 gün önce hatırlatma
-            event.alarms = [
-                {
-                    "action": "display",
-                    "trigger": timedelta(days=-1)
-                }
-            ]
-
-            calendar.events.add(event)
-        except Exception as e:
-            print(f"Etkinlik oluşturulamadı: {film['title']}, {e}")
-    return calendar
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+async def root():
+    with open("templates/index.html", "r", encoding="utf-8") as f:
+        return f.read()
 
-@app.get("/olustur")
-async def generate_calendar():
-    movies = get_upcoming_movies()
-    calendar = create_ics_from_movies(movies)
+@app.get("/calendar.ics")
+def get_calendar():
+    film_listesi = scraper_paribu.scrape()
+    calendar = Calendar()
 
-    os.makedirs("output", exist_ok=True)
-    path = "output/film_takvimi.ics"
-    with open(path, "w", encoding="utf-8") as f:
-        f.writelines(calendar)
+    for film in film_listesi:
+        event = Event()
+        event.name = film["title"]
+        
+        # Özet kontrolü
+        ozet = film["ozet"] if film["ozet"] else "Özet bulunamadı"
 
-    return FileResponse(path, media_type="text/calendar", filename="film_takvimi.ics")
+        # Description kısmı
+        description = f"""🎬 Tür: {film["tur"]}
+📄 Özet: {ozet}
+▶️ Fragman: {film["fragman"]}
+🔗 Detaylar: {film["link"]}"""
+        event.description = description
+
+        # Saat dilimi ayarı
+        turkey_tz = pytz.timezone("Europe/Istanbul")
+        dt_turkey = datetime.strptime(film["tarih"], "%Y-%m-%d")
+        dt_turkey = turkey_tz.localize(dt_turkey.replace(hour=22, minute=0, second=0))
+        dt_utc = dt_turkey.astimezone(pytz.utc)
+        event.begin = dt_utc.strftime("%Y-%m-%d %H:%M:%S")
+
+        # UID oluştur
+        uid = f"{uuid.uuid4()}@{film['title'].lower().replace(' ', '')[:5]}.org"
+        event.uid = uid
+
+        # Bildirim 1 gün önceden
+        event.alarms = ["-P1D"]
+
+        calendar.events.add(event)
+
+    return Response(str(calendar), media_type="text/calendar")
