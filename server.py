@@ -1,5 +1,8 @@
 from flask import Flask, send_file, render_template_string
 import os
+import threading
+import time
+import subprocess
 
 app = Flask(__name__)
 
@@ -18,5 +21,15 @@ def get_ics():
     else:
         return "Takvim dosyası bulunamadı", 404
 
+def background_ics_updater():
+    while True:
+        try:
+            print("🔄 ICS verisi güncelleniyor...")
+            subprocess.run(["python", "scraper_paribu.py"])
+        except Exception as e:
+            print(f"Hata: {e}")
+        time.sleep(43200)  # 12 saat (43200 saniye)
+
 if __name__ == "__main__":
+    threading.Thread(target=background_ics_updater, daemon=True).start()
     app.run(host="0.0.0.0", port=8000)
