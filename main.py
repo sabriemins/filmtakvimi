@@ -1,6 +1,6 @@
 from scraper_paribu import get_upcoming_movies
-from ics import Calendar, Event
-from datetime import datetime
+from ics import Calendar, Event, DisplayAlarm
+from datetime import datetime, timedelta
 import os
 
 def create_ics_from_movies(movies):
@@ -9,9 +9,23 @@ def create_ics_from_movies(movies):
         try:
             event = Event()
             event.name = film["title"]
-            event.begin = datetime.strptime(film["date"], "%Y%m%d")
-            event.description = f"▶️ Fragman: {film.get('trailer', 'Yok')}"
+            event.begin = datetime.strptime(film["date"], "%Y%m%d") + timedelta(hours=19)  # TSI 22:00
+
+            # Açıklama alanı: tür, özet, fragman ve detay linki
+            description = (
+                f"🎮 Tür: {film.get('genre', 'Tür belirtilmemiş')}\n"
+                f"📄 Özet: {film.get('summary', 'Ozet bulunamadi')}\n"
+                f"▶️ Fragman: {film.get('trailer', 'Yok')}\n"
+                f"🔗 Detaylar: {film.get('link', '')}"
+            )
+            event.description = description
+
             event.location = film["link"]
+
+            # 1 gün önce bildirim
+            alarm = DisplayAlarm(trigger=timedelta(days=-1))
+            event.alarms.append(alarm)
+
             calendar.events.add(event)
         except Exception as e:
             print(f"Etkinlik oluşturulamadı: {film['title']}, {e}")
@@ -28,7 +42,7 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         f.writelines(calendar)
 
-    print(f"ICS dosyası oluşturuldu: {output_path}")
+    print(f"✅ ICS dosyası oluşturuldu: {output_path}")
 
 if __name__ == "__main__":
     main()
